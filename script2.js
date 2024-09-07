@@ -1,7 +1,7 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-canvas.width = 100;
-canvas.height = 100;
+canvas.width = 800;
+canvas.height = 800;
 
 const layer_count = 7;
 
@@ -14,9 +14,11 @@ window.requestAnimationFrame(draw);
 
 function draw () {
 
-    var id = ctx.createImageData(1,1);
-    var d = id.data;
+    var pixelData = new Uint8ClampedArray(canvas.width*canvas.height*4);
+    let index = 0;
     let c = 255*0.5;
+
+    var start = performance.now();
 
     for (let x=0; x < canvas.width; x++) {
         for (let y=0; y < canvas.height; y++) {
@@ -35,13 +37,19 @@ function draw () {
             val = Math.min(1, Math.max(-1, val));
 
             // convert range [-1, 1] to [0, 255]
-            d[0] = (val+1) * c;
-            d[1] = d[0];
-            d[2] = d[0];
-            d[3] = 255;
-            ctx.putImageData(id, x, y);
+            let color = (val+1) * c;
+            pixelData[index++] = color;
+            pixelData[index++] = color;
+            pixelData[index++] = color;
+            pixelData[index++] = 255;
         }
     }
+
+    var id = ctx.createImageData(canvas.width, canvas.height);
+    id.data.set(pixelData);
+    ctx.putImageData(id,0,0);
+
+    console.log(performance.now() - start);
 
     canvas_to_image(canvas);
 }
@@ -99,8 +107,6 @@ function get_unit_vector (theta) {
 
 // dot product = inner product in R^2
 function dot_product (v, u) {
-    console.log(v);
-    console.log(u);
     return v[0]*u[0] + v[1]*u[1];
 }
 
