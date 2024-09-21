@@ -1,202 +1,113 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-canvas.width = 800;
-canvas.height = 800;
-// grid will be a square, size in cells
-const init_grid_size = 10;
-const grid_size = 2*init_grid_size-2;
-// horizontal size
-const init_cell_size = canvas.width / init_grid_size;
-const cell_size = canvas.width / grid_size;
-// cell count in width
-const cell_count = (canvas.width / cell_size)-3;
+
+const width = 2000;
+const height = 2000;
+
+canvas.width = width; canvas.height = height;
+
+const perlinMatrix = new ArrayBuffer(width*height);
+const buffer = new SharedArrayBuffer(width*height);
+
+const grid_size = 300;
+
 const layer_count = 1;
 
-const off = 50;
+const rand_pseudo_seed = Math.random() * 10000;
 
-let init_vec_matrix = [];
-let vec_matrix = [];
+var time;
 
+draw();
 
-window.requestAnimationFrame(animate);
-
-
-function animate () {
-
-    init_vectors();
-    // console.log(init_vec_matrix);
-    // draw_vectors(ctx, off, init_grid_size, init_cell_size, init_vec_matrix);
-
-    init_perlin_vectors();
-
-    draw_vectors(ctx, off + cell_size/2, grid_size-3, cell_size, vec_matrix);
-
-    perlin_all (layer_count, canvas.width / init_cell_size, init_cell_size, init_vec_matrix);
-
-    // perlin_all (layer_count, grid_size, cell_size, vec_matrix);
-
-}
-
-function perlin_all (layer_count, cell_count, cell_size, vec_matrix) {
-
-    var id = ctx.createImageData(1,1);
-    var d = id.data;
+function draw () {
 
     let c = 255*0.5;
+    time = performance.now();
 
-    let X = cell_count*cell_size - 2*cell_size;
-
-    for (let x=0; x < X; x++) {
-        for (let y=0; y < X; y++) {
+    for (let x=0; x < height; x++) {
+        for (let y=0; y < width; y++) {
 
             let amp = 1;
             let freq = 1;
             let val = 0;
-            let p = 0;
-            console.log(y);
             
             for (let i=0; i < layer_count; i++) {
-                val += perlin(x*freq, y*freq, cell_size, vec_matrix) * amp;
+                val += perlin(x*freq/grid_size ,y*freq/grid_size) * amp;
                 freq *= 2;
                 amp /= 2;
             }
 
-            // val *= 1.2;
-            // if (val > 1) {val = 1}
-            // if (val < -1) {val = -1}
-
+            val *= 1.2
+            val = Math.min(1, Math.max(-1, val));
             // convert range [-1, 1] to [0, 255]
-            d[0] = (val+1) * c;
-            d[1] = d[0];
-            d[2] = d[0];
-            d[3] = 255;
-            ctx.putImageData(id, x, y);
+            perlinMatrix[x * width + y] = (val+1) * c;
         }
     }
+
+    time = performance.now() - time;
+    console.log(time, "milliseconds");
+    toCanvas();
 }
 
-// a perlin noiser
-function perlin (x, y, cell_size, vec_matrix) {
+function toCanvas () {
 
-    // console.log(x, y);
+    var id = ctx.createImageData(canvas.width, canvas.height);
+    var d = id.data;
 
-    // top left corner
-    let tl_i = Math.floor(y / cell_size);
-    let tl_j = Math.floor(x / cell_size);
+    for (let x=0; x < canvas.height; x++) {
+        for (let y=0; y < canvas.width; y++) {
 
-    console.log("i: " + tl_i, "j: " + tl_j);
-    // console.log(tl_j);
-
-    let tj = (tl_j*cell_size - x) / cell_size;
-    let ti = (tl_i*cell_size - y) / cell_size;
-    // normalized distance vectors from point to cell corners
-    // let v_tl = [(tl_j*cell_size - x)     / cell_size, (tl_i*cell_size - y) / cell_size];
-    // let v_tr = [((tl_j+1)*cell_size - x) / cell_size, (tl_i*cell_size - y) / cell_size];
-    // let v_bl = [(tl_j*cell_size - x)     / cell_size, ((tl_i+1)*cell_size - y) / cell_size];
-    // let v_br = [((tl_j+1)*cell_size - x) / cell_size, ((tl_i+1)*cell_size - y) / cell_size];
-
-
-    let v_tl = [tj, ti];
-    let v_tr = [tj+1, ti];
-    let v_bl = [tj, ti+1];
-    let v_br = [tj+1, ti+1];
-
-    // console.log(v_tl);
-    // console.log(v_tr);
-    // console.log(v_bl);
-    // console.log(v_br);
-
-    // normalized distance from left cell wall, x coord
-    // is positive
-    // let dx = -tj;
-    // let dy = -ti;
-
-    let i1 = cubic_interpolate(dot_product(v_tl, vec_matrix[tl_i][tl_j]),
-                               dot_product(v_tr, vec_matrix[tl_i][tl_j+1]),
-                               -tj);
-    
-    // console.log(vec_matrix[tl_i][tl_j]);
-    // console.log(vec_matrix[tl_i][tl_j+1]);
-    // console.log(vec_matrix[tl_i+1][tl_j]);
-    // console.log(vec_matrix[tl_i+1][tl_j+1]);
-
-    let i2 = cubic_interpolate(dot_product(v_bl, vec_matrix[tl_i+1][tl_j]),
-                               dot_product(v_br, vec_matrix[tl_i+1][tl_j+1]),
-                               -tj);
-
-    return cubic_interpolate(i1, i2, -ti);
-}
-
-// a grid drawer
-function draw_grid (ctx) {
-
-    for (let i=0; i <= grid_size; i++) {
-        ctx.beginPath();
-        ctx.moveTo(0, cell_size*i);
-        ctx.lineTo(canvas.width, cell_size*i);
-        ctx.stroke();
-    }
-
-    for (let i=0; i <= grid_size; i++) {
-        ctx.beginPath();
-        ctx.moveTo(cell_size*i, 0);
-        ctx.lineTo(cell_size*i, canvas.height);
-        ctx.stroke();
-    }
-}
-
-function init_vectors () {
-
-    for (let i=0; i <= init_grid_size; i++) {
-        init_vec_matrix.push([]);
-        for (let j=0; j <= init_grid_size; j++) {
-            let v = get_unit_vector(Math.random() * 2*Math.PI);
-            init_vec_matrix[i].push(v);
+            const m = perlinMatrix[x * height + y];
+            const index = (x*height + y) * 4;
+            d[index] = m; d[index+1] = m; d[index+2] = m; d[index+3] = 255;
         }
     }
+
+    ctx.putImageData(id, 0, 0);
+
+    var url = canvas.toDataURL('image/png');
+
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'perlin_noise.png';
+    link.text = "download image"
+
+    document.body.appendChild(link);
 }
 
-function init_perlin_vectors () {
-        // let grid_size = 2*init_cell_size;
-    for (let i=0; i < grid_size; i++) {
-        vec_matrix.push([]);
-        for (let j=0; j < grid_size; j++) {
+function perlin (x, y) {
 
-            // cell_size/2 = init_cell_size/4
+    let x0 = Math.floor(x);
+    let x1 = Math.ceil(x);
+    let y0 = Math.floor(y);
+    let y1 = Math.ceil(y);
 
-            let theta = (perlin(cell_size/2 + i*cell_size, cell_size/2 + j*cell_size, init_cell_size, init_vec_matrix)+1)*Math.PI;
-            vec_matrix[i].push(get_unit_vector(theta));
-            console.log(Math.sqrt(Math.pow(vec_matrix[i][j][0],2) + Math.pow(vec_matrix[i][j][1],2)));
-            
-            // ctx.beginPath();
-            // ctx.moveTo(off+cell_size/2 + i*cell_size, off+cell_size/2 + j*cell_size);
-            // ctx.lineTo(off+cell_size/2 + i*cell_size + vec_matrix[i][j][0],
-            //            off+cell_size/2 + j*cell_size + vec_matrix[i][j][1]);
-            // ctx.stroke();
-        }
-    }
+    let v00 = [x0-x, y0-y];
+    let v10 = [x1-x, y0-y];
+    let v01 = [x0-x, y1-y];
+    let v11 = [x1-x, y1-y];
+
+    let t1 = cubic_interpolate(dot_product(v00, get_random_vec(x0,y0)), dot_product(v10, get_random_vec(x1,y0)), x-x0);
+    let t2 = cubic_interpolate(dot_product(v01, get_random_vec(x0,y1)), dot_product(v11, get_random_vec(x1,y1)), x-x0);
+
+    return cubic_interpolate(t1, t2, y-y0);
 }
 
-function draw_vectors (ctx, off, grid_size, cell_size, vec_matrix) {
-    
-    const increment = 10;
-    for (let i=0; i <= grid_size; i++) {
-        for (let j=0; j <= grid_size; j++) {
+// we want the same points to get the same randoms
+// other than that, its completely random
+function get_random_vec (x, y) {
+    const seed = rand_pseudo_seed + x*3284157443 + rand_pseudo_seed + y*1911520717;
+    const angle = seeded_random(seed) * 2*Math.PI;
+    return [Math.cos(angle), Math.sin(angle)];
+}
 
-            // console.log(init_vec_matrix[i][j]);
-            ctx.beginPath();
-    
-            ctx.moveTo(off+i*cell_size, off+j*cell_size);
-            ctx.lineTo(off+i*cell_size + vec_matrix[i][j][0]*increment,
-                       off+j*cell_size + vec_matrix[i][j][1]*increment);
-            ctx.stroke();
-        }
-    }
+function seeded_random (seed) {
+    let x = Math.sin(seed) * 10000;
+    return  x - Math.floor(x);
 }
 
 // imagine being on the unit circle
 function get_unit_vector (theta) {
-
     let x = Math.cos(theta); 
     let y = Math.sin(theta);
     return [x,y];
