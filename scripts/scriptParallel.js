@@ -1,8 +1,8 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-const width = 2000;
-const height = 2000;
+const width = 100; 
+const height = 100;
 
 canvas.width = width; canvas.height = height;
 
@@ -40,7 +40,7 @@ function parallelDraw () {
     time = performance.now();
 
     for (let i=0; i < numWorkers; i++) {
-        const worker = new Worker('./scripts/worker.js');
+        const worker = new Worker('./scripts/workerNew.js');
         workers.push(worker);
 
         const startX = i * chunkWidth;
@@ -48,6 +48,7 @@ function parallelDraw () {
 
         // define onmessage
         worker.onmessage = function(e) {
+            console.log("got message");
             if (e.data.status === "done") {
                 workersDone++;
                 if (workersDone === numWorkers) done(time, workers);
@@ -69,9 +70,9 @@ function done(startTime, workers) {
     console.log(performance.now() - startTime, "milliseconds, with ", numWorkers, "workers");
     toCanvas();
     workers.forEach(w => w.terminate());
-    plotProbs(getProbs(0,0,width/2,height/2));
-    plotProbs(getProbs(width/2,height/2,width,height));
-    plotCorr(getProbs(0,0,width/2,height/2), getProbs(width/2,height/2,width,height))
+    plotProbs(getProbs(0,0,width,height/2));
+    plotProbs(getProbs(0,height/2,width,height/2));
+    plotCorr (getProbs(0,0,width,height/2), getProbs(0,height/2,width,height/2))
     shannonEntropy();
 }
 

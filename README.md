@@ -1,1 +1,2 @@
 # perlin_noise
+emcc worker.cpp -o workerWasm.js     -s MODULARIZE=1     -s EXPORT_NAME='createModule'     -s USE_PTHREADS=1     -s PTHREAD_POOL_SIZE=0     -s SHARED_MEMORY=1     -s WASM_MEM_MAX=512MB     --bind

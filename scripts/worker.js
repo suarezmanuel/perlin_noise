@@ -53,8 +53,6 @@ function get_random_vec (x, y, seed) {
     return vectors[hash % vectors.length];
     // const angle = seeded_random(hash) * 2*Math.PI;
     // return [Math.cos(angle), Math.sin(angle)];
-
-
 }
 
 function seeded_random (seed) {
