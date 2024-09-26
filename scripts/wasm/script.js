@@ -8,10 +8,10 @@ createModule().then(Module => {
     const seed = Math.random() * 10000;
 
     // Load vectors
-    fetch("../../resources/vectorsGood.txt")
-        .then(response => response.text())
-        .then(text => {
-            const vectors = JSON.parse(text);
+    // fetch("../../resources/vectorsGood.txt")
+    //     .then(response => response.text())
+    //     .then(text => {
+            // const vectors = JSON.parse(text);
 
             // Call the generateNoise function
             let timeToCalc = performance.now();
@@ -20,8 +20,7 @@ createModule().then(Module => {
                 height,
                 grid_size,
                 layer_count,
-                seed,
-                vectors
+                seed
             );
             timeToCalc = performance.now() - timeToCalc;
 
@@ -69,10 +68,10 @@ createModule().then(Module => {
             div.appendChild(span);
             // Free the noise data in WASM memory
             // Module.freeNoise(noisePtr);
-        })
-        .catch(err => {
-            console.error('Error loading vectors:', err);
-        });
+        // })
+        // .catch(err => {
+        //     console.error('Error loading vectors:', err);
+        // });
 }).catch(err => {
     console.error('Error initializing WASM Module:', err);
 });
