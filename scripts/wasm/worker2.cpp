@@ -7,6 +7,7 @@
 #include <vector> // Added for std::vector
 #include <stdint.h>
 #include <filesystem>
+#include <xmmintrin.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../../include/stb_image_write.h"
 
@@ -34,53 +35,6 @@
     }
 #endif
 
-typedef float f32;
-typedef uint32_t u32;
-
-template<typename T> 
-class Vec2 
-{ 
-public: 
-    Vec2() : x(T(0)), y(T(0)) {} 
-    Vec2(T xx, T yy) : x(xx), y(yy) {} 
-    Vec2 operator * (const T &r) const { return Vec2(x * r, y * r); } 
-    T x, y; 
-    f32 length2 () { return x*x + y*y; }
-    f32 length () { return sqrtf(length2()); }
-}; 
-
-template<typename T> 
-class Vec3 
-{ 
-public: 
-    Vec3() : x(T(0)), y(T(0)), z(T(0)) {} 
-    Vec3(T xx, T yy, T zz) : x(xx), y(yy), z(zz) {} 
-    Vec3 operator * (const T &r) const { return Vec3(x * r, y * r, z * r); } 
-    T x, y, z; 
-    f32 length3 () { return x*x + y*y + z*z; }
-    f32 length () { return sqrtf(length3()); }
-}; 
-
-typedef Vec3<f32> Vec3f; 
-
-inline
-f32 lerp(const f32 &t, const f32 &a, const f32 &b) { return a + t * (b-a); }
-
-inline
-f32 quintic(const f32 &t) { return t * t * t * (t * (t * 6 - 15) + 10); }
-
-// calculates dot product with vector of the regular tetrahedron
-f32 gradient (uint8_t hash, f32 x, f32 y, f32 z) {
-
-    int h = hash & 15;
-    f32 u = h < 8 ? x : y;
-    f32 v = h < 4 ? y : (h == 12 || h == 14 ? x : z);
-    // if h even, if h is 2 or 3 mod 4
-    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v); 
-}
-
-static const unsigned kMaxTableSize = 256; 
-static const unsigned kMaxTableSizeMask = kMaxTableSize - 1;
 // only works for 512 for now
 unsigned int permutation[512] = 
 {
@@ -112,6 +66,97 @@ unsigned int permutation[512] =
     49,192,214, 31,181,199,106,157,184, 84,204,176,115,121,50,45,127, 4,150,254,
     138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
 };
+
+typedef float f32;
+typedef uint32_t u32;
+static const unsigned kMaxTableSize = 256; 
+static const unsigned kMaxTableSizeMask = kMaxTableSize - 1;
+
+// different representations of the same thing
+union f32_4x
+{
+    __m128 sse;
+    f32 E[4];
+};
+
+f32_4x F32_4X(f32 A, f32 B, f32 C, f32 D) {
+    // set backwards
+    f32_4x result = {{ _mm_set_ps(D,C,B,A) }};
+    return result;
+}
+
+f32_4x F32_4X(f32 A) {
+    // set backwards
+    f32_4x result = {{ _mm_set_ps1(A) }};
+    return result;
+}
+
+inline f32_4x
+operator+ (f32_4x A, f32_4x B)
+{
+    f32_4x result = {{ _mm_add_ps(A.sse, B.sse) }};
+    return result;
+}
+
+inline f32_4x
+operator- (f32_4x A, f32_4x B)
+{
+    f32_4x result = {{ _mm_sub_ps(A.sse, B.sse) }};
+    return result;
+}
+
+
+inline f32_4x
+operator* (f32_4x A, f32_4x B)
+{
+    f32_4x result = {{ _mm_mul_ps(A.sse, B.sse) }};
+    return result;
+}
+
+template<typename T> 
+class Vec2 
+{ 
+public: 
+    Vec2() : x(T(0)), y(T(0)) {} 
+    Vec2(T xx, T yy) : x(xx), y(yy) {} 
+    Vec2 operator * (const T &r) const { return Vec2(x * r, y * r); } 
+    T x, y; 
+    f32 length2 () { return x*x + y*y; }
+    f32 length () { return sqrtf(length2()); }
+}; 
+
+template<typename T> 
+class Vec3 
+{ 
+public: 
+    Vec3() : x(T(0)), y(T(0)), z(T(0)) {} 
+    Vec3(T xx, T yy, T zz) : x(xx), y(yy), z(zz) {} 
+    Vec3 operator * (const T &r) const { return Vec3(x * r, y * r, z * r); } 
+    T x, y, z; 
+    f32 length3 () { return x*x + y*y + z*z; }
+    f32 length () { return sqrtf(length3()); }
+}; 
+
+typedef Vec2<f32> Vec2f; 
+typedef Vec3<f32> Vec3f; 
+
+inline
+f32 lerp(const f32 &t, const f32 &a, const f32 &b) { return a + t * (b-a); }
+
+f32_4x lerp_4x(const f32_4x &t, const f32_4x &a, const f32_4x &b) { return a + t * (b-a); }
+
+inline
+f32 quintic(const f32 &t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+
+// calculates dot product with vector of the regular tetrahedron
+f32 gradient (uint8_t hash, f32 x, f32 y, f32 z) {
+
+    int h = hash & 15;
+    f32 u = h < 8 ? x : y;
+    f32 v = h < 4 ? y : (h == 12 || h == 14 ? x : z);
+    // if h even, if h is 2 or 3 mod 4
+    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v); 
+}
 
 f32 perlinNoise(const Vec3f &p) 
 {
@@ -152,16 +197,24 @@ f32 perlinNoise(const Vec3f &p)
     f32 l5 = lerp(v, l1, l2);
     f32 l6 = lerp(v, l3, l4);
 
+    // f32_4x u_4x = F32_4X(u);
+    // f32_4x LHS = F32_4X(a, c, e, g);
+    // f32_4x RHS = F32_4X(b, d, f, h);
+
+    // f32_4x l1234 = lerp_4x(u_4x, LHS, RHS);
+
+    // f32 l5 = lerp(v, l1234.E[0], l1234.E[1]);
+    // f32 l6 = lerp(v, l1234.E[2], l1234.E[3]);
+
     return lerp(w, l5, l6);
 }
 
-void perlinNoise_8x(f32 x, f32 y, f32 z, f32 *data) 
+void perlinNoise_8x(f32 x, f32 y, f32 z, f32 *data, f32 frequency) 
 {
     for (u32 i=0; i<8; i++) {
-        data[i] = perlinNoise(Vec3f(x+i,y,z));
+        data[i] = perlinNoise(Vec3f(x+i,y,z)*frequency);
     }
 }
-
 
 int main(int argc, char **argv) 
 { 
@@ -172,7 +225,7 @@ int main(int argc, char **argv)
 
     // generate value noise
     f32 frequency = 1/32.; 
-    std::vector<int> cycleCounts(imageHeight*imageWidth, 0);
+    std::vector<long long> cycleCounts(imageHeight*imageWidth, 0);
 
     // for (unsigned j = 0; j < imageHeight; ++j) { 
     //     for (unsigned i = 0; i < imageWidth; ++i) { 
@@ -186,19 +239,23 @@ int main(int argc, char **argv)
     for (unsigned j = 0; j < imageHeight; ++j) { 
         for (unsigned i = 0; i < imageWidth; i+=8) { 
             int start = rdtsc();
-            // generate a f32 in the range [0:1]
-            // noiseMap[j * imageWidth + i] = perlinNoise(Vec3f(i, 0, j) * frequency);
-            perlinNoise_8x(i* frequency, 0* frequency, j* frequency, noiseMap+(j * imageWidth + i));
-            cycleCounts[j * imageWidth + i] = (static_cast<int>(rdtsc()-start));
+            perlinNoise_8x(i, 0.0, j, noiseMap+(j * imageWidth + i), frequency);
+            cycleCounts[(j * imageWidth + i)/8] = (static_cast<int>(rdtsc()-start));
         } 
     } 
 
     long long sumCycles = 0;
+    long long min = cycleCounts[0];
+    long long max = cycleCounts[0];
     for (auto cycles : cycleCounts) {
         sumCycles += cycles;
+        min = std::min(min, cycles);
+        max = std::max(max, cycles);
     }
 
     std::cout << "cycle count: " << sumCycles << " cycles" << std::endl;
+    std::cout << "min cycle count in a call: " << min << " cycles" << std::endl;
+    std::cout << "max cycle count in a call: " << max << " cycles" << std::endl;
     std::cout << "average cycle count per call: " << sumCycles / (imageWidth * imageHeight) << " cycles" << std::endl;
 
     // Save cycle counts to a file for plotting
