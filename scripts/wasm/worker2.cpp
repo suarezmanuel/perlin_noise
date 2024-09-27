@@ -1,41 +1,4 @@
-#include <cstdio> 
-#include <random> 
-#include <functional> 
-#include <iostream> 
-#include <fstream> 
-#include <cmath> 
-#include <vector> // Added for std::vector
-#include <stdint.h>
-#include <filesystem>
-#include <xmmintrin.h>
-#include <emmintrin.h>
-#include <smmintrin.h>
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../../include/stb_image_write.h"
-
-// https://stackoverflow.com/questions/13772567/how-to-get-the-cpu-cycle-count-in-x86-64-from-c
-//  Windows
-#ifdef _WIN32
-    #include <intrin.h>
-    uint64_t rdtsc(){
-        // Serialize with CPUID
-        int cpuInfo[4];
-        __cpuid(cpuInfo, 0);
-        return __rdtsc();
-    }
-#else
-    uint64_t rdtsc(){
-        unsigned int lo, hi;
-        // Serialize with CPUID
-        __asm__ __volatile__ (
-            "cpuid\n"        // Serialize
-            "rdtsc"
-            : "=a" (lo), "=d" (hi)
-            : "a" (0)
-            : "ebx", "ecx");
-        return ((uint64_t)hi << 32) | lo;
-    }
-#endif
+#include "worker2.h"
 
 // only works for 512 for now
 unsigned int permutation[512] = 
@@ -68,182 +31,6 @@ unsigned int permutation[512] =
     49,192,214, 31,181,199,106,157,184, 84,204,176,115,121,50,45,127, 4,150,254,
     138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
 };
-
-typedef float f32;
-typedef uint32_t u32;
-typedef int32_t s32;
-static const unsigned kMaxTableSize = 256; 
-static const unsigned kMaxTableSizeMask = kMaxTableSize - 1;
-
-// different representations of the same thing
-union f32_4x
-{
-    __m128 sse;
-    f32 E[4];
-};
-
-f32_4x F32_4X(f32 A, f32 B, f32 C, f32 D) {
-    // set backwards
-    f32_4x result = {{ _mm_set_ps(D,C,B,A) }};
-    return result;
-}
-
-f32_4x F32_4X(f32 A) {
-    // set backwards
-    f32_4x result = {{ _mm_set_ps1(A) }};
-    return result;
-}
-
-inline f32_4x
-operator+ (f32_4x A, f32_4x B)
-{
-    f32_4x result = {{ _mm_add_ps(A.sse, B.sse) }};
-    return result;
-}
-
-inline f32_4x
-operator- (f32_4x A, f32_4x B)
-{
-    f32_4x result = {{ _mm_sub_ps(A.sse, B.sse) }};
-    return result;
-}
-
-inline f32_4x
-operator* (f32_4x A, f32_4x B)
-{
-    f32_4x result = {{ _mm_mul_ps(A.sse, B.sse) }};
-    return result;
-}
-
-inline f32_4x
-operator& (f32_4x A, f32_4x B)
-{
-    f32_4x result = {{ _mm_and_ps(A.sse, B.sse) }};
-    return result;
-}
-
-inline f32_4x
-operator| (f32_4x A, f32_4x B)
-{
-    f32_4x result = {{ _mm_or_ps(A.sse, B.sse) }};
-    return result;
-}
-
-inline f32_4x
-operator==(f32_4x A, f32_4x B)
-{
-  f32_4x result = {{ _mm_cmpeq_ps(A.sse, B.sse) }};
-  return result;
-}
-
-inline f32_4x
-operator>(f32_4x A, f32_4x B)
-{
-  f32_4x result = {{ _mm_cmpgt_ps(A.sse, B.sse) }};
-  return result;
-}
-
-inline f32_4x
-operator<(f32_4x A, f32_4x B)
-{
-  f32_4x result = {{ _mm_cmplt_ps(A.sse, B.sse) }};
-  return result;
-}
-
-
-// u32_4x
-
-// union u32_4x
-// {
-//     __m128i sse;
-//     u32 E[4];
-// };
-
-// u32_4x U32_4X(u32 A, u32 B, u32 C, u32 D) {
-//     // set backwards
-//     u32_4x result = {{ _mm_set_epi32(s32(D),s32(C),s32(B),s32(A)) }};
-//     return result;
-// }
-
-// u32_4x U32_4X(u32 A) {
-//     // set backwards
-//     u32_4x result = U32_4X(A, A, A, A);
-//     return result;
-// }
-
-// inline u32_4x
-// operator+(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_add_epi32(A.sse, B.sse) }};
-//   return Result;
-// }
-
-// inline u32_4x
-// operator-(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_sub_epi32(A.sse, B.sse) }};
-//   return Result;
-// }
-
-// inline u32_4x
-// operator*(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_mul_epi32(A.sse, B.sse) }};
-//   return Result;
-// }
-
-// NOTE(Jesse): Apparently this one doesn't exist?!
-// #if 0
-// inline u32_4x
-// operator/(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_div_epi32(A.sse, B.sse) }};
-//   return Result;
-// }
-// #endif
-
-// inline u32_4x
-// operator==(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_cmpeq_epi32(A.sse, B.sse) }};
-//   return Result;
-// }
-
-// inline u32_4x
-// operator>(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_cmpgt_epi32(A.sse, B.sse) }};
-//   return Result;
-// }
-
-// inline u32_4x
-// operator<(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_cmplt_epi32(A.sse, B.sse) }};
-//   return Result;
-// }
-
-// inline u32_4x
-// operator|(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_or_si128(A.sse, B.sse) }};
-//   return Result;
-// }
-
-// inline u32_4x
-// operator&(u32_4x A, u32_4x B)
-// {
-//   u32_4x Result = {{ _mm_and_si128(A.sse, B.sse) }};
-//   return Result;
-// }
-
-// inline u32_4x
-// operator&(u32_4x A, s32 B)
-// {
-//   u32_4x B4 = U32_4X(u32(B));
-//   u32_4x Result = A & B4;
-//   return Result;
-// }
 
 template<typename T> 
 class Vec2 
@@ -280,13 +67,6 @@ f32_4x lerp_4x(const f32_4x &t, const f32_4x &a, const f32_4x &b) { return a + t
 inline
 f32 quintic(const f32 &t) { return t * t * t * (t * (t * 6 - 15) + 10); }
 
-inline
-f32_4x _select(f32_4x mask, f32_4x A, f32_4x B) {
-    f32_4x result;
-    result.sse = _mm_blendv_ps(B.sse, A.sse, mask.sse);;
-    return result;
-}
-
 // calculates dot product with vector of the regular tetrahedron
 f32 gradient (uint8_t hash, f32 x, f32 y, f32 z) {
 
@@ -308,15 +88,15 @@ f32 gradient (uint8_t hash, f32 x, f32 y, f32 z) {
     return R0 + R1;
 }
 
-f32_4x gradient_4x (f32_4x hash, f32_4x x, f32_4x y, f32_4x z) {
+f32_4x gradient_4x (u32_4x hash, f32_4x x, f32_4x y, f32_4x z) {
     // pack scalars
-    auto _15 = F32_4X(15);
-    auto _14 = F32_4X(14);
-    auto _12 = F32_4X(12);
-    auto _8  = F32_4X(8);
-    auto _4  = F32_4X(4);
-    auto _2  = F32_4X(2);
-    auto _1  = F32_4X(1);
+    auto _15 = U32_4X(15);
+    auto _14 = U32_4X(14);
+    auto _12 = U32_4X(12);
+    auto _8  = U32_4X(8);
+    auto _4  = U32_4X(4);
+    auto _2  = U32_4X(2);
+    auto _1  = U32_4X(1);
     auto _n1 = F32_4X(-1);
 
     auto h = hash & _15;
@@ -424,8 +204,8 @@ f32 perlinNoiseSIMD(const Vec3f &p)
     f32_4x y_ny_y_ny   = F32_4X(y, y-1, y, y-1);
     f32_4x z_z_nz_nz   = F32_4X(z, z, z-1, z-1);
 
-    f32_4x H0246 = F32_4X(H0, H2, H4, H6);
-    f32_4x H1357 = F32_4X(H1, H3, H5, H7);
+    u32_4x H0246 = U32_4X(H0, H2, H4, H6);
+    u32_4x H1357 = U32_4X(H1, H3, H5, H7);
 
     f32_4x A4 = gradient_4x(H0246, x_x_x_x, y_ny_y_ny, z_z_nz_nz);
     f32_4x B4 = gradient_4x(H1357, nx_nx_nx_nx, y_ny_y_ny, z_z_nz_nz);
@@ -460,18 +240,18 @@ int main(int argc, char **argv)
 
     // for (unsigned j = 0; j < imageHeight; ++j) { 
     //     for (unsigned i = 0; i < imageWidth; ++i) { 
-    //         int start = rdtsc();
+    //         int start = read_cycle_counter();
     //         // generate a f32 in the range [0:1]
     //         noiseMap[j * imageWidth + i] = perlinNoise(Vec3f(i, 0, j) * frequency);
-    //         cycleCounts[j * imageWidth + i] = (static_cast<int>(rdtsc()-start));
+    //         cycleCounts[j * imageWidth + i] = (static_cast<int>(read_cycle_counter()-start));
     //     } 
     // } 
 
     for (unsigned j = 0; j < imageHeight; ++j) { 
         for (unsigned i = 0; i < imageWidth; i+=8) { 
-            int start = rdtsc();
+            int start = read_cycle_counter();
             perlinNoise_8x(i, 0.0, j, noiseMap+(j * imageWidth + i), frequency);
-            cycleCounts[(j * imageWidth + i)/8] = (static_cast<int>(rdtsc()-start));
+            cycleCounts[(j * imageWidth + i)/8] = (static_cast<int>(read_cycle_counter()-start));
         } 
     } 
 

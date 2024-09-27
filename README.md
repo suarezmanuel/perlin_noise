@@ -11,6 +11,12 @@ taskset -c 0 ./scripts/wasm/worker2
 
 g++ scripts/wasm/worker2.cpp -msse4.1 -o scripts/wasm/worker2
 
+clang++ scripts/wasm/worker2.cpp -o scripts/wasm/worker2
+
 sudo taskset -c 0 perf record -e cycles,instructions,cache-references,cache-misses,branches,branch-misses ./scripts/wasm/worker2
 
 sudo perf report
+
+lldb ./scripts/wasm/worker2
+
+gdb ./scripts/wasm/worker2
