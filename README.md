@@ -8,3 +8,9 @@ add cpuid
 sudo cpupower frequency-set --governor performance
 
 taskset -c 0 ./scripts/wasm/worker2
+
+g++ scripts/wasm/worker2.cpp -msse4.1 -o scripts/wasm/worker2
+
+sudo taskset -c 0 perf record -e cycles,instructions,cache-references,cache-misses,branches,branch-misses ./scripts/wasm/worker2
+
+sudo perf report

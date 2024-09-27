@@ -8,6 +8,8 @@
 #include <stdint.h>
 #include <filesystem>
 #include <xmmintrin.h>
+#include <emmintrin.h>
+#include <smmintrin.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../../include/stb_image_write.h"
 
@@ -69,6 +71,7 @@ unsigned int permutation[512] =
 
 typedef float f32;
 typedef uint32_t u32;
+typedef int32_t s32;
 static const unsigned kMaxTableSize = 256; 
 static const unsigned kMaxTableSizeMask = kMaxTableSize - 1;
 
@@ -105,13 +108,142 @@ operator- (f32_4x A, f32_4x B)
     return result;
 }
 
-
 inline f32_4x
 operator* (f32_4x A, f32_4x B)
 {
     f32_4x result = {{ _mm_mul_ps(A.sse, B.sse) }};
     return result;
 }
+
+inline f32_4x
+operator& (f32_4x A, f32_4x B)
+{
+    f32_4x result = {{ _mm_and_ps(A.sse, B.sse) }};
+    return result;
+}
+
+inline f32_4x
+operator| (f32_4x A, f32_4x B)
+{
+    f32_4x result = {{ _mm_or_ps(A.sse, B.sse) }};
+    return result;
+}
+
+inline f32_4x
+operator==(f32_4x A, f32_4x B)
+{
+  f32_4x result = {{ _mm_cmpeq_ps(A.sse, B.sse) }};
+  return result;
+}
+
+inline f32_4x
+operator>(f32_4x A, f32_4x B)
+{
+  f32_4x result = {{ _mm_cmpgt_ps(A.sse, B.sse) }};
+  return result;
+}
+
+inline f32_4x
+operator<(f32_4x A, f32_4x B)
+{
+  f32_4x result = {{ _mm_cmplt_ps(A.sse, B.sse) }};
+  return result;
+}
+
+
+// u32_4x
+
+// union u32_4x
+// {
+//     __m128i sse;
+//     u32 E[4];
+// };
+
+// u32_4x U32_4X(u32 A, u32 B, u32 C, u32 D) {
+//     // set backwards
+//     u32_4x result = {{ _mm_set_epi32(s32(D),s32(C),s32(B),s32(A)) }};
+//     return result;
+// }
+
+// u32_4x U32_4X(u32 A) {
+//     // set backwards
+//     u32_4x result = U32_4X(A, A, A, A);
+//     return result;
+// }
+
+// inline u32_4x
+// operator+(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_add_epi32(A.sse, B.sse) }};
+//   return Result;
+// }
+
+// inline u32_4x
+// operator-(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_sub_epi32(A.sse, B.sse) }};
+//   return Result;
+// }
+
+// inline u32_4x
+// operator*(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_mul_epi32(A.sse, B.sse) }};
+//   return Result;
+// }
+
+// NOTE(Jesse): Apparently this one doesn't exist?!
+// #if 0
+// inline u32_4x
+// operator/(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_div_epi32(A.sse, B.sse) }};
+//   return Result;
+// }
+// #endif
+
+// inline u32_4x
+// operator==(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_cmpeq_epi32(A.sse, B.sse) }};
+//   return Result;
+// }
+
+// inline u32_4x
+// operator>(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_cmpgt_epi32(A.sse, B.sse) }};
+//   return Result;
+// }
+
+// inline u32_4x
+// operator<(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_cmplt_epi32(A.sse, B.sse) }};
+//   return Result;
+// }
+
+// inline u32_4x
+// operator|(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_or_si128(A.sse, B.sse) }};
+//   return Result;
+// }
+
+// inline u32_4x
+// operator&(u32_4x A, u32_4x B)
+// {
+//   u32_4x Result = {{ _mm_and_si128(A.sse, B.sse) }};
+//   return Result;
+// }
+
+// inline u32_4x
+// operator&(u32_4x A, s32 B)
+// {
+//   u32_4x B4 = U32_4X(u32(B));
+//   u32_4x Result = A & B4;
+//   return Result;
+// }
 
 template<typename T> 
 class Vec2 
@@ -148,14 +280,62 @@ f32_4x lerp_4x(const f32_4x &t, const f32_4x &a, const f32_4x &b) { return a + t
 inline
 f32 quintic(const f32 &t) { return t * t * t * (t * (t * 6 - 15) + 10); }
 
+inline
+f32_4x _select(f32_4x mask, f32_4x A, f32_4x B) {
+    f32_4x result;
+    result.sse = _mm_blendv_ps(B.sse, A.sse, mask.sse);;
+    return result;
+}
+
 // calculates dot product with vector of the regular tetrahedron
 f32 gradient (uint8_t hash, f32 x, f32 y, f32 z) {
 
-    int h = hash & 15;
-    f32 u = h < 8 ? x : y;
-    f32 v = h < 4 ? y : (h == 12 || h == 14 ? x : z);
-    // if h even, if h is 2 or 3 mod 4
-    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v); 
+    auto h = hash & 15;
+
+    auto uSel = h < 8;
+    auto vSel = h < 4;
+    auto xSel = (h == 12 | h == 14);
+
+    auto u  = uSel ? x : y;
+    auto xz = xSel ? x : z;
+    auto v  = vSel ? y : xz;
+
+    auto uFlip = (h & 1) == 1;
+    auto vFlip = (h & 2) == 2;
+
+    auto R0 = uFlip ? -1*u : u;
+    auto R1 = vFlip ? -1*v : v;
+    return R0 + R1;
+}
+
+f32_4x gradient_4x (f32_4x hash, f32_4x x, f32_4x y, f32_4x z) {
+    // pack scalars
+    auto _15 = F32_4X(15);
+    auto _14 = F32_4X(14);
+    auto _12 = F32_4X(12);
+    auto _8  = F32_4X(8);
+    auto _4  = F32_4X(4);
+    auto _2  = F32_4X(2);
+    auto _1  = F32_4X(1);
+    auto _n1 = F32_4X(-1);
+
+    auto h = hash & _15;
+
+    auto uSel = h < _8;
+    auto vSel = h < _4;
+    auto xSel = (h == _12 | h == _14);
+
+    // selects either x or y based on interpolation via uSel
+    auto u  = _select(uSel, x, y);
+    auto xz = _select(xSel, x, z);
+    auto v  = _select(vSel, y, xz);
+
+    auto uFlip = (h & _1) == _1;
+    auto vFlip = (h & _2) == _2;
+
+    auto R0 = _select(uFlip, _n1*u, u);
+    auto R1 = _select(vFlip, _n1*v, v);
+    return R0 + R1;
 }
 
 f32 perlinNoise(const Vec3f &p) 
@@ -179,40 +359,91 @@ f32 perlinNoise(const Vec3f &p)
     int BA = permutation[B]   + Z;
     int BB = permutation[B+1] + Z;
 
-    f32 a = gradient(permutation[AA], x,   y,   z);
-    f32 b = gradient(permutation[BA], x-1, y,   z);
-    f32 c = gradient(permutation[AB], x,   y-1, z);
-    f32 d = gradient(permutation[BB], x-1, y-1, z);
+    int H0 = permutation[AA];
+    int H1 = permutation[BA];
+    int H2 = permutation[AB];
+    int H3 = permutation[BB];
+    int H4 = permutation[AA+1];
+    int H5 = permutation[BA+1];
+    int H6 = permutation[AB+1];
+    int H7 = permutation[BB+1];
 
-    f32 e = gradient(permutation[AA+1], x,   y,   z-1);
-    f32 f = gradient(permutation[BA+1], x-1, y,   z-1);
-    f32 g = gradient(permutation[AB+1], x,   y-1, z-1);
-    f32 h = gradient(permutation[BB+1], x-1, y-1, z-1);
+    f32 G0 = gradient(H0, x,   y,   z);
+    f32 G1 = gradient(H1, x-1, y,   z);
+    f32 G2 = gradient(H2, x,   y-1, z);
+    f32 G3 = gradient(H3, x-1, y-1, z);
 
-    f32 l1 = lerp(u, a, b);
-    f32 l2 = lerp(u, c, d);
-    f32 l3 = lerp(u, e, f);
-    f32 l4 = lerp(u, g, h);
+    f32 G4 = gradient(H4, x,   y,   z-1);
+    f32 G5 = gradient(H5, x-1, y,   z-1);
+    f32 G6 = gradient(H6, x,   y-1, z-1);
+    f32 G7 = gradient(H7, x-1, y-1, z-1);
 
-    f32 l5 = lerp(v, l1, l2);
-    f32 l6 = lerp(v, l3, l4);
+    f32 L1 = lerp(u, G0, G1);
+    f32 L2 = lerp(u, G2, G3);
+    f32 L3 = lerp(u, G4, G5);
+    f32 L4 = lerp(u, G6, G7);
 
-    // f32_4x u_4x = F32_4X(u);
-    // f32_4x LHS = F32_4X(a, c, e, g);
-    // f32_4x RHS = F32_4X(b, d, f, h);
+    f32 L5 = lerp(v, L1, L2);
+    f32 L6 = lerp(v, L3, L4);
 
-    // f32_4x l1234 = lerp_4x(u_4x, LHS, RHS);
+    return lerp(w, L5, L6);
+}
 
-    // f32 l5 = lerp(v, l1234.E[0], l1234.E[1]);
-    // f32 l6 = lerp(v, l1234.E[2], l1234.E[3]);
+f32 perlinNoiseSIMD(const Vec3f &p) 
+{
+    int X = ((int)std::floor(p.x)) & kMaxTableSizeMask; // find cube of point
+    int Y = ((int)std::floor(p.y)) & kMaxTableSizeMask;
+    int Z = ((int)std::floor(p.z)) & kMaxTableSizeMask;
 
-    return lerp(w, l5, l6);
+    f32 x = p.x - std::floor(p.x);  // find relative x,y,z in cube
+    f32 y = p.y - std::floor(p.y);
+    f32 z = p.z - std::floor(p.z);
+
+    f32 u = quintic(x);
+    f32 v = quintic(y);
+    f32 w = quintic(z);
+
+    int A  = permutation[X]   + Y;
+    int AA = permutation[A]   + Z;
+    int AB = permutation[A+1] + Z;
+    int B  = permutation[X+1] + Y;
+    int BA = permutation[B]   + Z;
+    int BB = permutation[B+1] + Z;
+
+    int H0 = permutation[AA];
+    int H1 = permutation[BA];
+    int H2 = permutation[AB];
+    int H3 = permutation[BB];
+    int H4 = permutation[AA+1];
+    int H5 = permutation[BA+1];
+    int H6 = permutation[AB+1];
+    int H7 = permutation[BB+1];
+
+    f32_4x x_x_x_x     = F32_4X(x, x, x, x);
+    f32_4x nx_nx_nx_nx = F32_4X(x-1, x-1, x-1, x-1);
+    f32_4x y_ny_y_ny   = F32_4X(y, y-1, y, y-1);
+    f32_4x z_z_nz_nz   = F32_4X(z, z, z-1, z-1);
+
+    f32_4x H0246 = F32_4X(H0, H2, H4, H6);
+    f32_4x H1357 = F32_4X(H1, H3, H5, H7);
+
+    f32_4x A4 = gradient_4x(H0246, x_x_x_x, y_ny_y_ny, z_z_nz_nz);
+    f32_4x B4 = gradient_4x(H1357, nx_nx_nx_nx, y_ny_y_ny, z_z_nz_nz);
+
+    f32_4x u_4x = F32_4X(u);
+
+    f32_4x L0123 = lerp_4x(u_4x, A4, B4);
+
+    f32 L5 = lerp(v, L0123.E[0], L0123.E[1]);
+    f32 L6 = lerp(v, L0123.E[2], L0123.E[3]);
+
+    return lerp(w, L5, L6);
 }
 
 void perlinNoise_8x(f32 x, f32 y, f32 z, f32 *data, f32 frequency) 
 {
     for (u32 i=0; i<8; i++) {
-        data[i] = perlinNoise(Vec3f(x+i,y,z)*frequency);
+        data[i] = perlinNoiseSIMD(Vec3f(x+i,y,z)*frequency);
     }
 }
 
