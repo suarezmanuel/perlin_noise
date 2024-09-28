@@ -148,6 +148,13 @@ static const unsigned kMaxTableSizeMask = kMaxTableSize - 1;
         return result;
     }
 
+    f32_4x F32_4X(float32x4_t A) {
+
+        f32_4x res;
+        res.sse = A;
+        return res;
+    }
+
     u32_4x U32_4X(u32 A, u32 B, u32 C, u32 D) {
         // no need to set backwards
         u32_4x result = { A, B, C, D };
@@ -158,6 +165,13 @@ static const unsigned kMaxTableSizeMask = kMaxTableSize - 1;
         // set backwards
         u32_4x result = { vdupq_n_u32(A) };
         return result;
+    }
+
+    u32_4x U32_4X(uint32x4_t A) {
+
+        u32_4x res;
+        res.sse = A;
+        return res;
     }
 
     inline f32_4x
@@ -180,6 +194,13 @@ static const unsigned kMaxTableSizeMask = kMaxTableSize - 1;
         f32_4x result = { vmulq_f32(A.sse, B.sse) };
         return result;
     }
+
+    inline f32_4x
+    operator/ (f32_4x A, f32_4x B)
+    {
+        f32_4x result = { vdivq_f32(A.sse, B.sse) };
+        return result;
+    } 
 
     inline u32_4x
     operator* (u32_4x A, u32_4x B)
