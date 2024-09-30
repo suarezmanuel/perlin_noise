@@ -1,5 +1,26 @@
 # perlin_noise
-emcc worker.cpp -o ../../temp/workerWasm.js     -s MODULARIZE=1     -s EXPORT_NAME='createModule'     -s USE_PTHREADS=1     -s PTHREAD_POOL_SIZE=0     -s  WASM_MEM_MAX=512MB     --bind
+
+perlin noise implemented in cpp, made to be compiled to wasm and used in js
+
+a case-study based on the following articles
+
+https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/perlin-noise-part-2/perlin-noise.html
+
+https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/procedural-patterns-noise-part-1/introduction.html
+
+https://mrl.cs.nyu.edu/~perlin/noise/
+
+https://scallywag.software/vim/blog/simd-perlin-noise-i
+
+
+# results
+
+![](./scripts/plot/merge/plot.png)
+
+
+# misc commands
+
+emcc worker2.cpp -g -O3 -msimd128 -o ../../temp/workerWasm.js     -s MODULARIZE=1     -s EXPORT_NAME='createModule'     -s USE_PTHREADS=1     -s PTHREAD_POOL_SIZE=0     -s  WASM_MEM_MAX=512MB     --bind
 
 perf stat -d ../../temp/./worker 1000 1000 300 1 123123
 

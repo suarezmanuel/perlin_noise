@@ -1,4 +1,6 @@
-#include "worker2.h"
+#include "worker2_sse.h"
+#include <emscripten/bind.h>
+#include <emscripten/val.h>
 
 // only works for 512 for now
 unsigned int permutation[512] = 
@@ -32,12 +34,14 @@ unsigned int permutation[512] =
     138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
 };
 
+f32_4x _127p5f = F32_4X(127.5);
 f32_4x _15f = F32_4X(15);
 f32_4x _10f = F32_4X(10);
 f32_4x _6f  = F32_4X(6);
 f32_4x _2f  = F32_4X(2);
 f32_4x _1f  = F32_4X(1);
 f32_4x _n1f = F32_4X(-1);
+
 
 // pack scalars
 u32_4x _15u = U32_4X(15);
@@ -236,7 +240,145 @@ f32 perlinNoiseSIMD(const Vec3f &p)
     return res;
 }
 
-void perlinNoiseSIMD_4x(const f32 x, const f32 y, const f32 z, const f32 f, f32 *data) 
+void perlinNoiseSIMD_4x(const f32 x, const f32 y, const f32 z, const f32 f, uint8_t *data) 
+{
+
+    u32_4x mask = U32_4X(kMaxTableSizeMask);
+
+    f32_4x X_4x = F32_4X(x, x+f, x+f+f, x+f+f+f);
+    f32_4x Y_4x = F32_4X(y);
+    f32_4x Z_4x = F32_4X(z);
+
+    u32_4x XI_4x = U32_4X(vcvtq_u32_f32(X_4x.sse));
+    u32_4x YI_4x = U32_4X(vcvtq_u32_f32(Y_4x.sse));
+    u32_4x ZI_4x = U32_4X(vcvtq_u32_f32(Z_4x.sse));
+
+    u32_4x XM_4x = XI_4x & mask;
+    u32_4x YM_4x = YI_4x & mask;
+    u32_4x ZM_4x = ZI_4x & mask;
+
+    // x - std::floor(x)
+    f32_4x SX_4x = X_4x - F32_4X(vcvtq_f32_u32(XI_4x.sse));
+    f32_4x SY_4x = Y_4x - F32_4X(vcvtq_f32_u32(YI_4x.sse));
+    f32_4x SZ_4x = Z_4x - F32_4X(vcvtq_f32_u32(ZI_4x.sse));
+
+    // (x - std::floor(x)) - 1
+    f32_4x NSX_4x = SX_4x - _1f;
+    f32_4x NSY_4x = SY_4x - _1f;
+    f32_4x NSZ_4x = SZ_4x - _1f;
+
+    f32_4x u_4x = quintic_4x(SX_4x);
+    f32_4x v_4x = quintic_4x(SY_4x);
+    f32_4x w_4x = quintic_4x(SZ_4x);
+
+    u32 A_0  = permutation[XM_4x.E[0]]   + Y_4x.E[0];
+    u32 AA_0 = permutation[A_0]          + Z_4x.E[0];
+    u32 AB_0 = permutation[A_0+1]        + Z_4x.E[0];
+    u32 B_0  = permutation[XM_4x.E[0]+1] + Y_4x.E[0];
+    u32 BA_0 = permutation[B_0]          + Z_4x.E[0];
+    u32 BB_0 = permutation[B_0+1]        + Z_4x.E[0];
+
+    u32 H0_0 = permutation[AA_0];
+    u32 H1_0 = permutation[BA_0];
+    u32 H2_0 = permutation[AB_0];
+    u32 H3_0 = permutation[BB_0];
+    u32 H4_0 = permutation[AA_0+1];
+    u32 H5_0 = permutation[BA_0+1];
+    u32 H6_0 = permutation[AB_0+1];
+    u32 H7_0 = permutation[BB_0+1];
+
+
+    u32 A_1  = permutation[XM_4x.E[1]]   + Y_4x.E[1];
+    u32 AA_1 = permutation[A_1]          + Z_4x.E[1];
+    u32 AB_1 = permutation[A_1+1]        + Z_4x.E[1];
+    u32 B_1  = permutation[XM_4x.E[1]+1] + Y_4x.E[1];
+    u32 BA_1 = permutation[B_1]          + Z_4x.E[1];
+    u32 BB_1 = permutation[B_1+1]        + Z_4x.E[1];
+
+    u32 H0_1 = permutation[AA_1];
+    u32 H1_1 = permutation[BA_1];
+    u32 H2_1 = permutation[AB_1];
+    u32 H3_1 = permutation[BB_1];
+    u32 H4_1 = permutation[AA_1+1];
+    u32 H5_1 = permutation[BA_1+1];
+    u32 H6_1 = permutation[AB_1+1];
+    u32 H7_1 = permutation[BB_1+1];
+
+
+    u32 A_2  = permutation[XM_4x.E[2]]   + Y_4x.E[2];
+    u32 AA_2 = permutation[A_2]          + Z_4x.E[2];
+    u32 AB_2 = permutation[A_2+1]        + Z_4x.E[2];
+    u32 B_2  = permutation[XM_4x.E[2]+1] + Y_4x.E[2];
+    u32 BA_2 = permutation[B_2]          + Z_4x.E[2];
+    u32 BB_2 = permutation[B_2+1]        + Z_4x.E[2];
+
+    u32 H0_2 = permutation[AA_2];
+    u32 H1_2 = permutation[BA_2];
+    u32 H2_2 = permutation[AB_2];
+    u32 H3_2 = permutation[BB_2];
+    u32 H4_2 = permutation[AA_2+1];
+    u32 H5_2 = permutation[BA_2+1];
+    u32 H6_2 = permutation[AB_2+1];
+    u32 H7_2 = permutation[BB_2+1];
+
+
+    u32 A_3  = permutation[XM_4x.E[3]]   + Y_4x.E[3];
+    u32 AA_3 = permutation[A_3]          + Z_4x.E[3];
+    u32 AB_3 = permutation[A_3+1]        + Z_4x.E[3];
+    u32 B_3  = permutation[XM_4x.E[3]+1] + Y_4x.E[3];
+    u32 BA_3 = permutation[B_3]          + Z_4x.E[3];
+    u32 BB_3 = permutation[B_3+1]        + Z_4x.E[3];
+
+    u32 H0_3 = permutation[AA_3];
+    u32 H1_3 = permutation[BA_3];
+    u32 H2_3 = permutation[AB_3];
+    u32 H3_3 = permutation[BB_3];
+    u32 H4_3 = permutation[AA_3+1];
+    u32 H5_3 = permutation[BA_3+1];
+    u32 H6_3 = permutation[AB_3+1];
+    u32 H7_3 = permutation[BB_3+1];
+
+
+    u32_4x H0 = U32_4X (H0_0, H0_1, H0_2, H0_3);
+    u32_4x H1 = U32_4X (H1_0, H1_1, H1_2, H1_3);
+    u32_4x H2 = U32_4X (H2_0, H2_1, H2_2, H2_3);
+    u32_4x H3 = U32_4X (H3_0, H3_1, H3_2, H3_3);
+    u32_4x H4 = U32_4X (H4_0, H4_1, H4_2, H4_3);
+    u32_4x H5 = U32_4X (H5_0, H5_1, H5_2, H5_3);
+    u32_4x H6 = U32_4X (H6_0, H6_1, H6_2, H6_3);
+    u32_4x H7 = U32_4X (H7_0, H7_1, H7_2, H7_3);
+
+
+    f32_4x G0 = gradient_4x(H0, SX_4x,  SY_4x,  SZ_4x); 
+    f32_4x G1 = gradient_4x(H1, NSX_4x, SY_4x,  SZ_4x); 
+    f32_4x G2 = gradient_4x(H2, SX_4x,  NSY_4x, SZ_4x); 
+    f32_4x G3 = gradient_4x(H3, NSX_4x, NSY_4x, SZ_4x); 
+
+    f32_4x G4 = gradient_4x(H4, SX_4x,  SY_4x,  NSZ_4x); 
+    f32_4x G5 = gradient_4x(H5, NSX_4x, SY_4x,  NSZ_4x); 
+    f32_4x G6 = gradient_4x(H6, SX_4x,  NSY_4x, NSZ_4x); 
+    f32_4x G7 = gradient_4x(H7, NSX_4x, NSY_4x, NSZ_4x); 
+
+
+    f32_4x L0 = lerp_4x(u_4x, G0, G1);
+    f32_4x L1 = lerp_4x(u_4x, G2, G3);
+
+    f32_4x L2 = lerp_4x(u_4x, G4, G5);
+    f32_4x L3 = lerp_4x(u_4x, G6, G7);
+
+    f32_4x L5 = lerp_4x(v_4x, L0, L1);
+    f32_4x L6 = lerp_4x(v_4x, L2, L3);
+
+    f32_4x result = lerp_4x(w_4x, L5, L6);
+    result = (result + _1f) * _127p5f;
+
+    data[0] = std::floor(result.E[0]);
+    data[1] = std::floor(result.E[1]);
+    data[2] = std::floor(result.E[2]);
+    data[3] = std::floor(result.E[3]);
+}
+
+void perlinNoiseSIMD_8x(const f32 x, const f32 y, const f32 z, const f32 f, f32 *data) 
 {
 
     u32_4x mask = U32_4X(kMaxTableSizeMask);
@@ -373,6 +515,7 @@ void perlinNoiseSIMD_4x(const f32 x, const f32 y, const f32 z, const f32 f, f32 
     data[3] = result.E[3];
 }
 
+
 void perlinNoise_8x(f32 x, f32 y, f32 z, f32 *data, f32 f) 
 {
     for (u32 i=0; i<8; i++) {
@@ -380,65 +523,39 @@ void perlinNoise_8x(f32 x, f32 y, f32 z, f32 *data, f32 f)
     }
 }
 
-int main(int argc, char **argv) 
-{ 
-    unsigned imageWidth = 512; 
-    unsigned imageHeight = 512; 
-    // Using std::vector instead of raw pointer
-    f32 noiseMap [imageWidth * imageHeight]; 
+int main (int argc, char** argv) {
+
+    if (argc != 5) { std::cerr << "Usage: " << argv[0] << " <startX> <startY> <width> <height>" << std::endl; return 1; }
+
+    u32 startX = std::atoi(argv[1]);
+    u32 startY = std::atoi(argv[2]); 
+    u32 width  = std::atoi(argv[3]);
+    u32 height = std::atoi(argv[4]); 
+    // width * height
+    uint8_t* noise = (uint8_t*)malloc(width * height);
 
     // frequency
     f32 f = 1/32.; 
-    std::vector<long long> cycleCounts(imageHeight*imageWidth, 0);
 
-    for (unsigned j = 0; j < imageHeight; ++j) { 
-        for (unsigned i = 0; i < imageWidth; i+=8) { 
-            int start = read_cycle_counter();
+    auto start = std::chrono::high_resolution_clock::now();
 
+    for (unsigned j = 0; j < width; ++j) { 
+        for (unsigned i = 0; i < height; i+=8) { 
             for (u32 k=0; k<8; k+=4) {
-                perlinNoiseSIMD_4x((i+k)*f, 0.0f, j*f, f, noiseMap+(j * imageWidth + i + k));
+                perlinNoiseSIMD_4x((i+startX+k)*f, 0.0f, (j+startY)*f, f, noise + (j * height + i + k));
             }
-
-            cycleCounts[(j * imageWidth + i)/8] = (static_cast<int>(read_cycle_counter()-start));
         } 
     } 
 
-    long long sumCycles = 0;
-    long long min = cycleCounts[0];
-    long long max = cycleCounts[0];
-    for (auto cycles : cycleCounts) {
-        sumCycles += cycles;
-        min = std::min(min, cycles);
-        max = std::max(max, cycles);
-    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "took " << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << "millis" << std::endl;
 
-    std::cout << "cycle count: " << sumCycles << " cycles" << std::endl;
-    std::cout << "min cycle count in a call: " << min << " cycles" << std::endl;
-    std::cout << "max cycle count in a call: " << max << " cycles" << std::endl;
-    std::cout << "average cycle count per call: " << sumCycles / (imageWidth * imageHeight) << " cycles" << std::endl;
 
-    // Save cycle counts to a file for plotting
-    std::ofstream cycleFile("./scripts/plot/cycle_counts.dat");
-    if (!cycleFile) {
-        std::cerr << "Failed to open cycle_counts.dat for writing.\n";
-        return 1;
-    }
+    std::vector<unsigned char> imageBuffer(width * height * 3);
 
-    // Write data in the format: x y cycles
-    for(unsigned j = 0; j < imageHeight; ++j){
-        for(unsigned i = 0; i < imageWidth; ++i){
-            int index = j * imageWidth + i;
-            cycleFile << j * imageWidth + i << " " << cycleCounts[index] << "\n";
-        }
-    }
-    cycleFile.close();
-
-// Prepare image buffer (RGB)
-    std::vector<unsigned char> imageBuffer(imageWidth * imageHeight * 3);
-
-    for (unsigned k = 0; k < imageWidth * imageHeight; ++k) { 
-        // Normalize noiseMap[k] from [-1,1] to [0,255]
-        unsigned char n = static_cast<unsigned char>((noiseMap[k]+1) * 127.5); 
+    for (unsigned k = 0; k < width * height; ++k) { 
+        // Normalize noise[k] from [-1,1] to [0,255]
+        unsigned char n = static_cast<unsigned char>((noise[k]+1) * 127.5); 
         imageBuffer[3 * k + 0] = n; // Red channel
         imageBuffer[3 * k + 1] = n; // Green channel
         imageBuffer[3 * k + 2] = n; // Blue channel
@@ -446,11 +563,196 @@ int main(int argc, char **argv)
 
     std::string outputFilename = "./resources/noise/noise.png";
     // overwrite if already exists
-    if (stbi_write_png(outputFilename.c_str(), imageWidth, imageHeight, 3, imageBuffer.data(), imageWidth * 3)) {
+    if (stbi_write_png(outputFilename.c_str(), width, height, 3, imageBuffer.data(), width * 3)) {
         std::cout << "Successfully wrote " << outputFilename << "\n";
     } else {
         std::cerr << "Failed to write " << outputFilename << "\n";
         return 1;
     }
-    return 0;
+}
+
+uintptr_t genNoise (u32 startX, u32 startY, u32 width, u32 height) {
+
+    // width * height
+    // f32 noise [width * height]; 
+    uint8_t* noise = (uint8_t*)malloc(width * height);
+
+    // frequency
+    f32 f = 1/256.; 
+
+    for (unsigned j = 0; j < width; ++j) { 
+        for (unsigned i = 0; i < height; i+=8) { 
+            for (u32 k=0; k<8; k+=4) {
+                perlinNoiseSIMD_4x((i+startX+k)*f, 0.0f, (j+startY)*f, f, noise + (j * height + i + k));
+            }
+        } 
+    } 
+
+    return reinterpret_cast<uintptr_t>(noise);
+}
+
+// int _time(int argc, char **argv) 
+// { 
+//     unsigned imageWidth = 100; 
+//     unsigned imageHeight = 100; 
+//     // Using std::vector instead of raw pointer
+//     f32 noiseMap [imageWidth * imageHeight]; 
+
+//     // frequency
+//     f32 f = 1/32.; 
+//     std::vector<long long> cycleCounts(imageHeight*imageWidth, 0);
+
+//     auto start = std::chrono::high_resolution_clock::now();
+
+//     for (unsigned j = 0; j < imageHeight; ++j) { 
+//         for (unsigned i = 0; i < imageWidth; i+=8) { 
+//             // int start = read_cycle_counter();
+
+//             for (u32 k=0; k<8; k+=4) {
+//                 perlinNoiseSIMD_4x((i+k)*f, 0.0f, j*f, f, noiseMap + (j * imageWidth + i + k));
+//             }
+
+//             // cycleCounts[(j * imageWidth + i)/8] = (static_cast<int>(read_cycle_counter()-start));
+//         } 
+//     } 
+
+//     auto end = std::chrono::high_resolution_clock::now();
+
+//     std::cout << "took " << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << "millis" << std::endl;
+
+//     long long sumCycles = 0;
+//     long long min = cycleCounts[0];
+//     long long max = cycleCounts[0];
+//     for (auto cycles : cycleCounts) {
+//         sumCycles += cycles;
+//         min = std::min(min, cycles);
+//         max = std::max(max, cycles);
+//     }
+
+//     std::cout << "cycle count: " << sumCycles << " cycles" << std::endl;
+//     std::cout << "min cycle count in a call: " << min << " cycles" << std::endl;
+//     std::cout << "max cycle count in a call: " << max << " cycles" << std::endl;
+//     std::cout << "average cycle count per call: " << sumCycles / (imageWidth * imageHeight) << " cycles" << std::endl;
+
+//     // Save cycle counts to a file for plotting
+//     std::ofstream cycleFile("./scripts/plot/cycle_counts.dat");
+//     if (!cycleFile) {
+//         std::cerr << "Failed to open cycle_counts.dat for writing.\n";
+//         return 1;
+//     }
+
+//     // Write data in the format: x y cycles
+//     for(unsigned j = 0; j < imageHeight; ++j){
+//         for(unsigned i = 0; i < imageWidth; ++i){
+//             int index = j * imageWidth + i;
+//             cycleFile << j * imageWidth + i << " " << cycleCounts[index] << "\n";
+//         }
+//     }
+//     cycleFile.close();
+
+// // Prepare image buffer (RGB)
+//     std::vector<unsigned char> imageBuffer(imageWidth * imageHeight * 3);
+
+//     for (unsigned k = 0; k < imageWidth * imageHeight; ++k) { 
+//         // Normalize noiseMap[k] from [-1,1] to [0,255]
+//         unsigned char n = static_cast<unsigned char>((noiseMap[k]+1) * 127.5); 
+//         imageBuffer[3 * k + 0] = n; // Red channel
+//         imageBuffer[3 * k + 1] = n; // Green channel
+//         imageBuffer[3 * k + 2] = n; // Blue channel
+//     }
+
+//     std::string outputFilename = "./resources/noise/noise.png";
+//     // overwrite if already exists
+//     if (stbi_write_png(outputFilename.c_str(), imageWidth, imageHeight, 3, imageBuffer.data(), imageWidth * 3)) {
+//         std::cout << "Successfully wrote " << outputFilename << "\n";
+//     } else {
+//         std::cerr << "Failed to write " << outputFilename << "\n";
+//         return 1;
+//     }
+//     return 0;
+// }
+
+// int _cycles(int argc, char **argv) 
+// { 
+//     unsigned imageWidth = 100; 
+//     unsigned imageHeight = 100; 
+//     // Using std::vector instead of raw pointer
+//     f32 noiseMap [imageWidth * imageHeight]; 
+
+//     // frequency
+//     f32 f = 1/32.; 
+//     // std::vector<long long> cycleCounts(imageHeight*imageWidth, 0);
+
+//     auto start = std::chrono::high_resolution_clock::now();
+
+//     for (unsigned j = 0; j < imageHeight; ++j) { 
+//         for (unsigned i = 0; i < imageWidth; i+=8) { 
+//             // int start = read_cycle_counter();
+
+//             for (u32 k=0; k<8; k+=4) {
+//                 perlinNoiseSIMD_4x((i+k)*f, 0.0f, j*f, f, noiseMap + (j * imageWidth + i + k));
+//             }
+
+//             // cycleCounts[(j * imageWidth + i)/8] = (static_cast<int>(read_cycle_counter()-start));
+//         } 
+//     } 
+
+//     auto end = std::chrono::high_resolution_clock::now();
+
+//     std::cout << "took " << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << "millis" << std::endl;
+
+//     // long long sumCycles = 0;
+//     // long long min = cycleCounts[0];
+//     // long long max = cycleCounts[0];
+//     // for (auto cycles : cycleCounts) {
+//     //     sumCycles += cycles;
+//     //     min = std::min(min, cycles);
+//     //     max = std::max(max, cycles);
+//     // }
+
+//     // std::cout << "cycle count: " << sumCycles << " cycles" << std::endl;
+//     // std::cout << "min cycle count in a call: " << min << " cycles" << std::endl;
+//     // std::cout << "max cycle count in a call: " << max << " cycles" << std::endl;
+//     // std::cout << "average cycle count per call: " << sumCycles / (imageWidth * imageHeight) << " cycles" << std::endl;
+
+//     // Save cycle counts to a file for plotting
+//     // std::ofstream cycleFile("./scripts/plot/cycle_counts.dat");
+//     // if (!cycleFile) {
+//     //     std::cerr << "Failed to open cycle_counts.dat for writing.\n";
+//     //     return 1;
+//     // }
+
+//     // Write data in the format: x y cycles
+//     // for(unsigned j = 0; j < imageHeight; ++j){
+//     //     for(unsigned i = 0; i < imageWidth; ++i){
+//     //         int index = j * imageWidth + i;
+//     //         cycleFile << j * imageWidth + i << " " << cycleCounts[index] << "\n";
+//     //     }
+//     // }
+//     // cycleFile.close();
+
+// // Prepare image buffer (RGB)
+//     std::vector<unsigned char> imageBuffer(imageWidth * imageHeight * 3);
+
+//     for (unsigned k = 0; k < imageWidth * imageHeight; ++k) { 
+//         // Normalize noiseMap[k] from [-1,1] to [0,255]
+//         unsigned char n = static_cast<unsigned char>((noiseMap[k]+1) * 127.5); 
+//         imageBuffer[3 * k + 0] = n; // Red channel
+//         imageBuffer[3 * k + 1] = n; // Green channel
+//         imageBuffer[3 * k + 2] = n; // Blue channel
+//     }
+
+//     std::string outputFilename = "./resources/noise/noise.png";
+//     // overwrite if already exists
+//     if (stbi_write_png(outputFilename.c_str(), imageWidth, imageHeight, 3, imageBuffer.data(), imageWidth * 3)) {
+//         std::cout << "Successfully wrote " << outputFilename << "\n";
+//     } else {
+//         std::cerr << "Failed to write " << outputFilename << "\n";
+//         return 1;
+//     }
+//     return 0;
+// }
+
+EMSCRIPTEN_BINDINGS(my_module) {
+    emscripten::function("generateNoise", &genNoise);
 }

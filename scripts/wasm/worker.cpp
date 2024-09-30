@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <algorithm>
 #include <iostream>
-// #include <emscripten/bind.h>
-// #include <emscripten/val.h>
+#include <emscripten/bind.h>
+#include <emscripten/val.h>
 
 struct Vec2 {
     double x;
@@ -78,14 +78,14 @@ void dispatchWorker(int startX, int startY, int width, int height, int layer_cou
     }
 }
 
-int main (int argc, char** argv) {
+// int main (int argc, char** argv) {
 
-    if (argc != 6) { std::cerr << "Usage: " << argv[0] << " <width> <height> <grid_size> <layer_count> <seed>" << std::endl; return 1; }
+//     if (argc != 6) { std::cerr << "Usage: " << argv[0] << " <width> <height> <grid_size> <layer_count> <seed>" << std::endl; return 1; }
 
-    uint8_t* noise = (uint8_t*)malloc(std::atoi(argv[1]) * std::atoi(argv[2]));
-    dispatchWorker(0, 0, std::atoi(argv[1]), std::atoi(argv[2]), std::atoi(argv[3]), std::atoi(argv[4]), std::atoi(argv[5]), noise);
-    return reinterpret_cast<uintptr_t>(noise);
-}
+//     uint8_t* noise = (uint8_t*)malloc(std::atoi(argv[1]) * std::atoi(argv[2]));
+//     dispatchWorker(0, 0, std::atoi(argv[1]), std::atoi(argv[2]), std::atoi(argv[3]), std::atoi(argv[4]), std::atoi(argv[5]), noise);
+//     return reinterpret_cast<uintptr_t>(noise);
+// }
 
 uintptr_t generateNoise(int width, int height, int grid_size, int layer_count, double seed) {
 
@@ -99,7 +99,7 @@ void freeNoise(uintptr_t noisePtr) {
     free(noise);
 }
 
-// EMSCRIPTEN_BINDINGS(my_module) {
-//     emscripten::function("generateNoise", &generateNoise);
-//     emscripten::function("freeNoise", &freeNoise);
-// }
+EMSCRIPTEN_BINDINGS(my_module) {
+    emscripten::function("generateNoise", &generateNoise);
+    emscripten::function("freeNoise", &freeNoise);
+}

@@ -1,8 +1,8 @@
 createModule().then(Module => {
     console.log('WASM Module initialized');
 
-    const width = 1000; // Your desired width
-    const height = 1000; // Your desired height
+    const width = 3000; // Your desired width
+    const height = 3000; // Your desired height
     const grid_size = 300;
     const layer_count = 1;
     const seed = Math.random() * 10000;
@@ -15,13 +15,21 @@ createModule().then(Module => {
 
             // Call the generateNoise function
             let timeToCalc = performance.now();
+            // const noisePtr = Module.generateNoise(
+            //     width,
+            //     height,
+            //     layer_count,
+            //     grid_size,
+            //     seed
+            // );
+
             const noisePtr = Module.generateNoise(
+                0,
+                0,
                 width,
-                height,
-                grid_size,
-                layer_count,
-                seed
+                height
             );
+    
             timeToCalc = performance.now() - timeToCalc;
 
             // Create a typed array view over the WASM memory (shared buffer)
