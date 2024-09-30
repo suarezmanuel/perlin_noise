@@ -15,9 +15,9 @@ https://scallywag.software/vim/blog/simd-perlin-noise-i
 
 # results
 
-60 fps 1000x1000 perlin noise animation
+60 fps 1000x1000 px perlin noise animation
 
-![](./resources/noise.mov)
+![](./resources/noise.gif)
 
 ![](./scripts/plot/merge/plot.png)
 
@@ -51,3 +51,5 @@ sudo perf report
 lldb ./scripts/wasm/worker2
 
 gdb ./scripts/wasm/worker2
+
+ffmpeg -i noise.mov -vf "fps=30,scale=1000:-1:flags=lanczos" -c:v gif noise.gif
