@@ -15,12 +15,22 @@ https://scallywag.software/vim/blog/simd-perlin-noise-i
 
 # results
 
+60 fps 1000x1000 perlin noise animation
+
+![](./resources/noise.mov)
+
 ![](./scripts/plot/merge/plot.png)
 
 
 # misc commands
 
 emcc worker2.cpp -g -O3 -msimd128 -o ../../temp/workerWasm.js     -s MODULARIZE=1     -s EXPORT_NAME='createModule'     -s USE_PTHREADS=1     -s PTHREAD_POOL_SIZE=0     -s  WASM_MEM_MAX=512MB     --bind
+
+emcc perlin.cpp -O3 -msimd128 -o ../../temp/perlinWasm.js \
+  -s EXPORTED_FUNCTIONS="['_generateNoise', '_my_malloc', '_my_free']" \
+  -s EXPORTED_RUNTIME_METHODS="['cwrap', 'ccall']" \
+  -s MODULARIZE=1 \
+  -s EXPORT_NAME='createModule'
 
 perf stat -d ../../temp/./worker 1000 1000 300 1 123123
 
